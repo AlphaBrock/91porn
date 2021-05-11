@@ -14,9 +14,14 @@ you can watch video by global cdn network through the project
 
 ## How to use
 
-```shell
-python3 main.py
-```
+1. edit the config file
+
+    edit the `config.ini` file and modify the github information
+
+2. run the script
+    ```shell
+    python3 main.py
+    ```
 
 ## Function
 

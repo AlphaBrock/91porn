@@ -28,7 +28,6 @@ class Logger(object):
         self.logger = logging.getLogger(filename)
         format_str = logging.Formatter(fmt)
         self.logger.setLevel(self.level_relations.get(level))
-        # self.logger.handlers.clear()
         sh = logging.StreamHandler()
         sh.setFormatter(format_str)
         th = handlers.TimedRotatingFileHandler(filename=filename, when=when, backupCount=backCount,

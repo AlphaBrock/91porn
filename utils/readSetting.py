@@ -9,17 +9,23 @@
 """
 import configparser
 
-conf = configparser.ConfigParser()
-
 
 class Config(object):
 
     def __init__(self):
-        cfg = "../config.ini"
-        conf.read(cfg)
+        self.conf = configparser.ConfigParser()
+        cfg = "config.ini"
+        self.conf.read(cfg)
 
-        self.githubUserName = conf.get("github", "UserName")
-        self.githubRepository = conf.get("github", "Repository")
-        self.githubAccessToken = conf.get("github", "AccessToken")
+        self.githubUserName = self.conf.get("github", "UserName")
+        self.githubRepository = self.conf.get("github", "Repository")
+        self.githubAccessToken = self.conf.get("github", "AccessToken")
 
-        self.pornUrl = conf.get("91porn", "url")
+        self.pornUrl = self.conf.get("91porn", "url")
+        self.pornHost = self.conf.get("91porn", "host")
+
+        self.dbPath = self.conf.get("sqlite", "path")
+
+
+if __name__ == '__main__':
+    a = Config()

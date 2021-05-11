@@ -15,7 +15,7 @@ from ipaddress import IPv4Address
 from utils.logger import Logger
 from utils.readSetting import Config
 
-log = Logger("../log/github.log")
+log = Logger("log/github.log")
 
 
 class Github(Config):
@@ -87,7 +87,7 @@ class Github(Config):
         # socks.set_default_proxy(socks.SOCKS5, "127.0.0.1", 1080)
         # socket.socket = socks.socksocket
         i = 0
-        while i < 3:
+        while i < 5:
             response = requests.request("PUT", url, headers=self.headers, data=json.dumps(payload))
             if response.status_code == 201 or response.status_code == 200:
                 log.logger.info("File:{}, 上传成功".format(File))
@@ -97,4 +97,4 @@ class Github(Config):
 
             time.sleep(random.randint(2, 5))
             i += 1
-            log.logger.warning("File:{}, 上传失败, 返回结果:{}, 重试次数:{}".format(File, response.text, i))
+            log.logger.warning("File:{}, 上传失败, 返回状态码结果:{}, 返回结果:{}, 重试次数:{}".format(File, response.status_code, response.text, i))

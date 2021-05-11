@@ -17,22 +17,22 @@ import aiohttp
 import requests as requests
 from fake_useragent import UserAgent
 from lxml import etree
+from concurrent.futures import ThreadPoolExecutor, wait
 
-from downloader import DownLoader
+from libs.downloader import DownLoader
 from utils.logger import Logger
 from utils.readSetting import Config
 
 ua = UserAgent()
-log = Logger(filename="../log/asyncSpider.log")
+downloader = DownLoader()
+log = Logger(filename="log/asyncSpider.log")
 
 
 class Spider(Config):
 
     def __init__(self):
-        # self.connector = ProxyConnector.from_url('socks5://127.0.0.1:1080')
         super().__init__()
         self.max_threads = 10
-        self.proxies = {'http': 'socks5://127.0.0.1:1080', 'https': 'socks5://127.0.0.1:1080'}
         self.payload = {
             "session_language": "cn_CN"
         }
@@ -54,11 +54,10 @@ class Spider(Config):
         """
         headers = {
             "User-Agent": ua.random,
-            "Host": "91porn.com",
+            "Host": self.pornHost,
             "referer": url,
             "X-Forwarded-For": str(IPv4Address(random.getrandbits(32)))
         }
-        # self.headers["Host"] = "91porn.com"
         response = requests.request("POST", url, headers=headers, timeout=30)
         log.logger.debug(response.status_code)
         html = self.__parse_results(response.text)
@@ -79,7 +78,7 @@ class Spider(Config):
         try:
             headers = {
                 "User-Agent": ua.random,
-                "Host": "91porn.com",
+                "Host": self.pornHost,
                 "referer": pageUrl,
                 "X-Forwarded-For": str(IPv4Address(random.getrandbits(32)))
             }
@@ -102,7 +101,7 @@ class Spider(Config):
         """
         headers = {
             "User-Agent": ua.random,
-            "Host": "91porn.com",
+            "Host": self.pornHost,
             "referer": url,
             "X-Forwarded-For": str(IPv4Address(random.getrandbits(32)))
         }
@@ -114,7 +113,6 @@ class Spider(Config):
     async def getM38UUrl(self, session, url):
         text = await self.downloadHtml(session, url)
         try:
-            # html = self.__parse_results(text)
             videoEncodeUrl = re.compile(r'document.write\(strencode2\(([^)]+)').search(text.decode('utf-8')).group(1)
             log.logger.debug(unquote(videoEncodeUrl, encoding='utf-8', errors='replace'))
             videoDecodeUrl = re.compile(r'src=\'(http[a-z\.:0-9\/]+)').search(unquote(videoEncodeUrl, encoding='utf-8', errors='replace')).group(1)
@@ -137,7 +135,7 @@ class Spider(Config):
                 async with aiohttp.ClientSession() as session:
                     videoDecodeUrl = await self.getM38UUrl(session, videoUrl)
                     if videoDecodeUrl:
-                        DownLoader.run(videoDecodeUrl, videoThumbUrl, videoTitle=videoTitle, videoDuration=videoDuration)
+                        downloader.run(videoDecodeUrl, videoThumbUrl, videoTitle=videoTitle, videoDuration=videoDuration)
                     else:
                         log.logger.exception(videoDecodeUrl)
                     log.logger.info(
@@ -149,7 +147,9 @@ class Spider(Config):
         videoTitles, videoDurations, videoUrls, videoThumbs = self.getVideoUrlList(pageUrl)
         q = asyncio.Queue()
         [q.put_nowait((videoTitles[i], videoDurations[i], videoUrls[i], videoThumbs[i])) for i in range(len(videoTitles))]
+        # loop = asyncio.new_event_loop()
         loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
         try:
             tasks = [self.handleTasks(task_id, q, ) for task_id in range(self.max_threads)]
             loop.run_until_complete(asyncio.wait(tasks))
@@ -158,9 +158,31 @@ class Spider(Config):
         finally:
             loop.close()
 
+    # def aa(self, loop, start, end):
+    #     if start == 0:
+    #         start += 1
+    #
+    #     while start < end:
+    #         url = "{}&page={}".format(self.pornUrl, start)
+    #         self.eventLoop(loop, url)
+    #         start += 1
+
     def run(self):
         pageNum = self.getPageNum(self.pornUrl)
 
+        # part = pageNum // 24
+        # pool = ThreadPoolExecutor(max_workers=6)
+        # futures = []
+        # loop = asyncio.new_event_loop()
+        # for i in range(24):
+        #     start = part * i
+        #     if i == 24 -1:
+        #         end = pageNum
+        #     else:
+        #         end = start + part - 1
+        #     log.logger.debug("startPageNum:{}, endPageNum:{}".format(start, end))
+        #     futures.append(pool.submit(self.aa, loop, start, end))
+        # wait(futures)
         for i in range(1, int(pageNum)):
             url = "{}&page={}".format(self.pornUrl, i)
             self.eventLoop(url)

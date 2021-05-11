@@ -20,17 +20,19 @@ from fake_useragent import UserAgent
 
 from utils.github import Github
 from utils.logger import Logger
+from utils.sqlite import Database
 
+db = Database()
 ua = UserAgent()
 github = Github()
-log = Logger(filename="../log/downloader.log")
+log = Logger(filename="log/downloader.log")
 
 
 class DownLoader(object):
 
     def __init__(self):
-        if not os.path.exists("../video"):
-            os.mkdir("../video")
+        if not os.path.exists("video"):
+            os.mkdir("video")
 
     def m3u8s(self, url, **kwargs):
         """
@@ -40,8 +42,7 @@ class DownLoader(object):
         """
         headers = {
             "User-Agent": ua.random,
-            "Host": "91porn.com",
-            "X-Forwarded-For": str(IPv4Address(random.getrandbits(32)))
+            "Host": "91porn.com"
         }
         baseUrl = re.compile(r'(.*)/[0-9]+\.m3u8').search(url).group(1)
         fileName = re.compile(r'/([0-9]+)\.m3u8').search(url).group(1)
@@ -50,16 +51,11 @@ class DownLoader(object):
 
         i = 0
         while i < 3:
+            headers["X-Forwarded-For"] = str(IPv4Address(random.getrandbits(32)))
             r = requests.request("GET", url, headers=headers)
             if r.status_code != 400:
                 with open("video/{}/{}.m38u".format(fileName, fileName), "wb") as fp:
                     fp.write(r.content)
-
-                uploadUrl = github.uploadFile(fileName, "{}.m3u8".format(fileName), base64.b64encode(r.content))
-                if uploadUrl:
-                    log.logger.info("videoTitle:{}, videoDuration:{}, videoUrl:{}".format(kwargs.get("videoTitle"),
-                                                                                          kwargs.get("videoDuration"),
-                                                                                          uploadUrl))
 
                 with open("video/{}/{}.m38u".format(fileName, fileName), "rb+") as file:
                     urls = []
@@ -70,10 +66,19 @@ class DownLoader(object):
                             urls.append(baseUrl + "/" + str(line.strip(b"\n")).replace("\'", "").replace("b", ""))
                             files.append(str(line.strip(b"\n")).replace("\'", "").replace("b", ""))
 
-                return fileName, urls, files
-            time.sleep(random.randint(2, 3))
+                uploadUrl = github.uploadFile(fileName, "{}.m3u8".format(fileName), base64.b64encode(r.content))
+                if uploadUrl:
+                    log.logger.info("videoTitle:{}, videoDuration:{}, videoUrl:{}".format(kwargs.get("videoTitle"),
+                                                                                          kwargs.get("videoDuration"),
+                                                                                          uploadUrl))
+                    sql = '''INSERT INTO defaultVideo (videoId, videoTitle, videoUrl, videoDuration) VALUES ("%s", "%s", "%s", "%s")''' % (
+                    fileName, kwargs.get("videoTitle"), uploadUrl, kwargs.get("videoDuration"))
+                    log.logger.info("插入视频基本信息sql:{}".format(sql))
+                    db.insert(sql)
+                return status, fileName, urls, files
+            time.sleep(random.randint(2, 5))
             i += 1
-            log.logger.warning("url:{}, 下载异常, 返回结果:{}, 重试次数:{}".format(url, r.text, i))
+            log.logger.warning("url:{}, 下载失败, 返回状态码结果:{}, 返回结果:{}, 重试次数:{}".format(url, r.status_code, r.text, i))
 
     def downVideo(self, tsFileName, tsUrl, file):
         """
@@ -86,28 +91,38 @@ class DownLoader(object):
         """
         headers = {
             "User-Agent": ua.random,
-            "X-Forwarded-For": str(IPv4Address(random.getrandbits(32)))
+            "Host": "91porn.com"
         }
         i = 0
         while i < 3:
+            headers["X-Forwarded-For"] = str(IPv4Address(random.getrandbits(32)))
             r = requests.request("GET", tsUrl, headers=headers)
             if r.status_code == 200:
                 log.logger.info("下载ts文件:{}成功, 返回状态码:{}".format(file, r.status_code))
                 github.uploadFile(tsFileName, file, base64.b64encode(r.content))
+
                 break
             time.sleep(random.randint(2, 5))
             i += 1
-            log.logger.warning("File:{}, 上传失败, 返回结果:{}, 重试次数:{}".format(file, r.status_code, i))
+            log.logger.warning("File:{}, 下载失败, 返回状态码结果:{}, 返回结果:{}, 重试次数:{}".format(file, r.status_code, r.text, i))
 
     def downThumb(self, tsFileName, thumbUrl, **kwargs):
+        """
+        下载封面
+        :param tsFileName:
+        :param thumbUrl:
+        :param kwargs:
+        :return:
+        """
         headers = {
             "User-Agent": ua.random,
-            "X-Forwarded-For": str(IPv4Address(random.getrandbits(32)))
+            "Host": "91porn.com"
         }
         thumbFileName = re.compile(r'/([0-9]+\.[a-z]+)').search(thumbUrl).group(1)
 
         i = 0
         while i < 3:
+            headers["X-Forwarded-For"] = str(IPv4Address(random.getrandbits(32)))
             r = requests.request("GET", thumbUrl, headers=headers)
             if r.status_code == 200:
                 uploadUrl = github.uploadFile(tsFileName, thumbFileName, base64.b64encode(r.content))
@@ -116,10 +131,12 @@ class DownLoader(object):
                                                                                                kwargs.get(
                                                                                                    "videoDuration"),
                                                                                                uploadUrl))
-
+                    sql = '''update defaultVideo videoPic set value="%s" where videoId=%s''' % (uploadUrl, tsFileName)
+                    log.logger.info("插入图片封面链接sql:{}".format(sql))
+                    db.insert(sql)
             time.sleep(random.randint(2, 5))
             i += 1
-            log.logger.warning("thumbUrl:{}, 上传失败, 返回结果:{}, 重试次数:{}".format(thumbUrl, r.status_code, i))
+            log.logger.warning("thumbUrl:{}, 下载失败, 返回状态码结果:{}, 返回结果:{}, 重试次数:{}".format(thumbUrl, r.status_code, r.text, i))
 
     def run(self, m3u8Url, thumbUrl, **kwargs):
         """
@@ -130,9 +147,9 @@ class DownLoader(object):
         """
         pool = ThreadPoolExecutor(max_workers=20)
         futures = []
-        tsFileName, tsUrls, tsFiles = self.m3u8s(m3u8Url, **kwargs)
+        tsFileName, tsUrls, tsFiles = self.m3u8s(m3u8Url, videoTitle=kwargs.get("videoTitle"), videoDuration=kwargs.get("videoDuration"))
         if tsFileName:
-            self.downThumb(tsFileName, thumbUrl, **kwargs)
+            self.downThumb(tsFileName, thumbUrl)
             for i in range(len(tsUrls)):
                 tsUrl = tsUrls[i]
                 tsFile = tsFiles[i]
