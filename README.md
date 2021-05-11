@@ -2,7 +2,7 @@
 
 you can watch video by global cdn network through the project
 
-## Enviroment
+## Environment
 
 - Python3.6+
     There is a tutorial on how to install python3.9 in ubuntu 16 and ubuntu 18 --> [click me](https://segmentfault.com/a/1190000021967408)
