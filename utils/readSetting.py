@@ -15,7 +15,7 @@ class Config(object):
     def __init__(self):
         self.conf = configparser.ConfigParser()
         cfg = "config.ini"
-        self.conf.read(cfg)
+        self.conf.read(cfg, encoding="utf-8")
 
         self.githubUserName = self.conf.get("github", "UserName")
         self.githubRepository = self.conf.get("github", "Repository")
