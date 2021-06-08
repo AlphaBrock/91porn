@@ -8,7 +8,11 @@
 -------------------------------------------------
 """
 import logging
+import os
 from logging import handlers
+
+if not os.path.exists("log"):
+   os.mkdir("log")
 
 
 class Logger(object):
